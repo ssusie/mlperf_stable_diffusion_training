@@ -136,8 +136,8 @@ def coco_eval(model, coco, cocoGt, encoder, inv_map, threshold,
     current_accuracy = E.stats[0]
 
     ssd_print(key=mllog_const.EVAL_ACCURACY,
-                         value={"epoch": epoch,
-                                "value": current_accuracy},
+              value=current_accuracy,
+              metadata={mllog_const.EPOCH_NUM: epoch},
               sync=False)
     mllogger.end(
         key=mllog_const.EVAL_STOP,
@@ -271,7 +271,7 @@ def train300_mlperf_coco(args):
     mllogger.start(
         key=mllog_const.BLOCK_START,
         metadata={mllog_const.FIRST_EPOCH_NUM: 1,
-                    mllog_const.EPOCH_COUNT: args.epochs})
+                  mllog_const.EPOCH_COUNT: args.epochs})
     for epoch in range(args.epochs):
         mllogger.start(
             key=mllog_const.EPOCH_START,
@@ -343,7 +343,7 @@ def train300_mlperf_coco(args):
     mllogger.end(
         key=mllog_const.BLOCK_STOP,
         metadata={mllog_const.FIRST_EPOCH_NUM: 1,
-                    mllog_const.EPOCH_COUNT: args.epochs})
+                  mllog_const.EPOCH_COUNT: args.epochs})
 
     return False
 
