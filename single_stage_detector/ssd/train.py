@@ -43,10 +43,10 @@ def parse_args():
                         help='path to model checkpoint file')
     parser.add_argument('--no-save', action='store_true',
                         help='save model checkpoints')
-    parser.add_argument('--val-interval', type=int, default=None,
+    parser.add_argument('--val-interval', type=int, default=1,
                         help='epoch interval for validation in addition to --val-epochs.')
     parser.add_argument('--val-epochs', nargs='*', type=int,
-                        default=[40, 50, 55, 60, 65, 70, 75, 80],
+                        default=[],
                         help='epochs at which to evaluate in addition to --val-interval')
     parser.add_argument('--batch-splits', type=int, default=1,
                         help='Split batch to N steps (gradient accumulation)')
@@ -366,9 +366,10 @@ def train300_mlperf_coco(args):
                     .format(iter_num, loss.item(), avg_loss))
             iter_num += 1
 
-
-        if (args.val_epochs and (epoch+1) in args.val_epochs) or \
-           (args.val_interval and not (epoch+1) % args.val_interval):
+        do_eval = (args.val_epochs and (epoch+1) in args.val_epochs) or \
+                  (args.val_interval and not (epoch+1) % args.val_interval)
+        do_eval = do_eval and (epoch+1)>=50
+        if do_eval:
             if args.distributed:
                 world_size = float(dist.get_world_size())
                 for bn_name, bn_buf in ssd300.module.named_buffers(recurse=True):

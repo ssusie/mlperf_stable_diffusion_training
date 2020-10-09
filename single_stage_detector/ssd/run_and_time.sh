@@ -39,7 +39,7 @@ echo "STARTING TIMING RUN AT $start_fmt"
 
 # run benchmark
 set -x
-NUMEPOCHS=${NUMEPOCHS:-70}
+NUMEPOCHS=${NUMEPOCHS:-150}
 LR=${LR:-"2.5e-3"}
 
 echo "running benchmark"
