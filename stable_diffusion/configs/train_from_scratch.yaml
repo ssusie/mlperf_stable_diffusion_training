@@ -106,7 +106,7 @@ data:
               params:
                 pattern: 'c h w -> h w c'
           # txt_transforms:
-          num_workers: 2
+          num_workers: 4
           # cache_size:
           # cache_dir:
           persistent_workers: True
@@ -117,10 +117,10 @@ lightning:
     num_nodes: 1
     devices: 8
     precision: 16
-    logger: True
+    logger: False
     log_every_n_steps: 5
     enable_progress_bar: True
-    max_steps: 100
+    max_steps: 10000000000000
     # val_check_interval:
     # inference_mode:
     # resume_from_checkpoint:
@@ -134,5 +134,5 @@ lightning:
     target: lightning.pytorch.callbacks.ModelCheckpoint
     params:
       save_top_k: -1
-      every_n_train_steps: 100
+      every_n_train_steps: 1500
       #  train_time_interval: None

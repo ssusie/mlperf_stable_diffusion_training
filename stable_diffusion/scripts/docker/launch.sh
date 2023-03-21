@@ -14,6 +14,7 @@ done
 docker run --rm -it --gpus=all --ipc=host \
     --workdir /pwd \
     -v ${PWD}:/pwd \
+    -v ${PWD}/nogit/results:/results \
     -v /datasets/laion2B-en-aesthetic/webdataset:/datasets/laion2B-en-aesthetic \
     -v ${PWD}/nogit/cache/huggingface:/root/.cache/huggingface \
     -e PYTHONPYCACHEPREFIX=/tmp/.pycache \
