@@ -991,7 +991,7 @@ class LatentDiffusion(DDPM):
         loss_simple = self.get_loss(model_output, target, mean=False).mean([1, 2, 3])
         loss_dict.update({f'{prefix}/loss_simple': loss_simple.mean()})
 
-        logvar_t = self.logvar[t].to(self.device)
+        logvar_t = self.logvar.to(self.device)[t]
 
         loss = loss_simple / torch.exp(logvar_t) + logvar_t
         # loss = loss_simple / torch.exp(self.logvar) + self.logvar
@@ -1474,8 +1474,7 @@ class LatentDiffusion(DDPM):
             rank_zero_info('Diffusion model optimizing logvar')
             params.append(self.logvar)
 
-        from colossalai.nn.optimizer import HybridAdam
-        opt = HybridAdam(params, lr=lr)
+        opt = torch.optim.AdamW(params, lr=lr)
 
         # opt = torch.optim.AdamW(params, lr=lr)
         if self.use_scheduler:
