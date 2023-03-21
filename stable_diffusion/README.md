@@ -13,7 +13,15 @@ Based on ColossalAI repo here: https://github.com/hpcaitech/ColossalAI
 
 # Download dataset
 ## Laion aesthetic
+```bash
+./scripts/datasets/download_laion2B-en-aesthetic.sh
+```
+
 ## coco2017
+
+```bash
+./scripts/datasets/download_coco-2014-validation.sh
+```
 # Run training
 # Run validation
 ## Preprocess dataset
