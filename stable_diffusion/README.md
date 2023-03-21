@@ -67,7 +67,7 @@ TODO
 ## Calculate FID score
 ### Single node (with docker):
 ```bash
-./fid_score.sh <resized_coco_folder> <generated_images>
+./scripts/fid_score.sh <resized_coco_folder> <generated_images>
 ```
 
 ### Multi-node (with SLURM)
@@ -76,7 +76,7 @@ TODO
 ## Calculate CLIP score
 ### Single node (with docker):
 ```bash
-./clip_score.sh <prompts_json> <generated_images>
+./scripts/clip_score.sh <prompts_json> <generated_images>
 ```
 
 ### Multi-node (with SLURM)
