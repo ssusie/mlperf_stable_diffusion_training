@@ -6,6 +6,11 @@ Based on ColossalAI repo here: https://github.com/hpcaitech/ColossalAI
 
 
 # Build image
+
+```bash
+./scripts/docker/build.sh
+```
+
 # Download dataset
 ## Laion aesthetic
 ## coco2017
