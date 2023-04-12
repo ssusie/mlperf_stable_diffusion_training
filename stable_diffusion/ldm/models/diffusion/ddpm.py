@@ -1476,7 +1476,6 @@ class LatentDiffusion(DDPM):
 
         opt = torch.optim.AdamW(params, lr=lr)
 
-        # opt = torch.optim.AdamW(params, lr=lr)
         if self.use_scheduler:
             assert 'target' in self.scheduler_config
             scheduler = instantiate_from_config(self.scheduler_config)

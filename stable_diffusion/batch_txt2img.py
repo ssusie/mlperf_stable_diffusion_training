@@ -20,7 +20,7 @@ from ldm.util import instantiate_from_config
 from ldm.models.diffusion.ddim import DDIMSampler
 from ldm.models.diffusion.plms import PLMSSampler
 from ldm.models.diffusion.dpm_solver import DPMSolverSampler
-from utils import replace_module, getModelSize
+# from scripts.utils import replace_module, getModelSize
 
 torch.set_grad_enabled(False)
 
@@ -77,11 +77,13 @@ def parse_args():
     parser.add_argument(
         "--prompt-col",
         type=str,
+        default="caption",
         help="column name of prompt",
     )
     parser.add_argument(
         "--fname-col",
         type=str,
+        default="id",
         help="column name of the output image",
     )
     parser.add_argument(
@@ -144,7 +146,7 @@ def parse_args():
     parser.add_argument(
         "--num-samples",
         type=int,
-        default=3,
+        default=1,
         help="how many samples to produce for each given prompt.",
     )
     parser.add_argument(
@@ -184,12 +186,6 @@ def parse_args():
         default="autocast"
     )
     parser.add_argument(
-        "--repeat",
-        type=int,
-        default=1,
-        help="repeat each prompt",
-    )
-    parser.add_argument(
         "--use-int8",
         type=bool,
         default=False,
@@ -222,16 +218,20 @@ def main(opt):
         config.model.params.use_ema = opt.use_ema
     model = load_model_from_config(config, f"{opt.ckpt}")
 
+    # TODO(ahmadki): clean up this part
     if torch.cuda.is_available():
-        device = torch.device("gpu") if opt.gpu is None else torch.cuda.device(opt.gpu)
+        device = torch.device("cuda") # if opt.gpu is None else torch.cuda.device(opt.gpu)
+        if opt.gpu is not None:
+            torch.cuda.set_device(opt.gpu)
     else:
         device = torch.device("cpu")
 
     model = model.to(device)
 
-    # quantize model
-    if opt.use_int8:
-        model = replace_module(model)
+    # TODO(ahmadki): enable after fixing the issue with bitsandbytes
+    # # quantize model
+    # if opt.use_int8:
+    #     model = replace_module(model)
         # # to compute the model size
         # getModelSize(model)
 
@@ -298,7 +298,7 @@ def main(opt):
                     x_sample = 255. * rearrange(x_sample.cpu().numpy(), 'c h w -> h w c')
                     img = Image.fromarray(x_sample.astype(np.uint8))
                     img = put_watermark(img, wm_encoder)
-                    img.save(os.path.join(opt.output_folder, f"{fname}.png"))
+                    img.save(os.path.join(opt.output_dir, f"{fname}.png"))
                     sample_count += 1
 
     print(f"rank {opt.rank} of {opt.world_size} processed {sample_count} samples.")
