@@ -40,7 +40,10 @@ from torch.optim.lr_scheduler import LambdaLR
 from torchvision.utils import make_grid
 from tqdm import tqdm
 
-__conditioning_keys__ = {'concat': 'c_concat', 'crossattn': 'c_crossattn', 'adm': 'y'}
+
+__conditioning_keys__ = {'concat': 'c_concat',
+                         'crossattn': 'c_crossattn',
+                         'adm': 'y'}
 
 
 def disabled_train(self, mode=True):
@@ -55,41 +58,39 @@ def uniform_on_device(r1, r2, shape, device):
 
 class DDPM(pl.LightningModule):
     # classic DDPM with Gaussian diffusion, in image space
-    def __init__(
-        self,
-        unet_config,
-        timesteps=1000,
-        beta_schedule="linear",
-        loss_type="l2",
-        ckpt=None,
-        ignore_keys=[],
-        load_only_unet=False,
-        monitor="val/loss",
-        use_ema=True,
-        first_stage_key="image",
-        image_size=256,
-        channels=3,
-        log_every_t=100,
-        clip_denoised=True,
-        linear_start=1e-4,
-        linear_end=2e-2,
-        cosine_s=8e-3,
-        given_betas=None,
-        original_elbo_weight=0.,
-        v_posterior=0.,    # weight for choosing posterior variance as sigma = (1-v) * beta_tilde + v * beta
-        l_simple_weight=1.,
-        conditioning_key=None,
-        parameterization="eps",    # all assuming fixed variance schedules
-        scheduler_config=None,
-        use_positional_encodings=False,
-        learn_logvar=False,
-        logvar_init=0.,
-        use_fp16=True,
-        make_it_fit=False,
-        ucg_training=None,
-        reset_ema=False,
-        reset_num_ema_updates=False,
-    ):
+    def __init__(self,
+                 unet_config,
+                 timesteps=1000,
+                 beta_schedule="linear",
+                 loss_type="l2",
+                 ckpt=None,
+                 ignore_keys=[],
+                 load_only_unet=False,
+                 monitor="val/loss",
+                 use_ema=True,
+                 first_stage_key="image",
+                 image_size=256,
+                 channels=3,
+                 log_every_t=100,
+                 clip_denoised=True,
+                 linear_start=1e-4,
+                 linear_end=2e-2,
+                 cosine_s=8e-3,
+                 given_betas=None,
+                 original_elbo_weight=0.,
+                 v_posterior=0.,  # weight for choosing posterior variance as sigma = (1-v) * beta_tilde + v * beta
+                 l_simple_weight=1.,
+                 conditioning_key=None,
+                 parameterization="eps",  # all assuming fixed variance schedules
+                 scheduler_config=None,
+                 use_positional_encodings=False,
+                 learn_logvar=False,
+                 logvar_init=0.,
+                 use_fp16=True,
+                 make_it_fit=False,
+                 ucg_training=None,
+                 reset_ema=False,
+                 reset_num_ema_updates=False):
         super().__init__()
         assert parameterization in ["eps", "x0", "v"], 'currently only supporting "eps" and "x0" and "v"'
         self.parameterization = parameterization
@@ -320,22 +321,30 @@ class DDPM(pl.LightningModule):
         return mean, variance, log_variance
 
     def predict_start_from_noise(self, x_t, t, noise):
-        return (extract_into_tensor(self.sqrt_recip_alphas_cumprod, t, x_t.shape) * x_t -
-                extract_into_tensor(self.sqrt_recipm1_alphas_cumprod, t, x_t.shape) * noise)
+        return (
+                extract_into_tensor(self.sqrt_recip_alphas_cumprod, t, x_t.shape) * x_t -
+                extract_into_tensor(self.sqrt_recipm1_alphas_cumprod, t, x_t.shape) * noise
+        )
 
     def predict_start_from_z_and_v(self, x_t, t, v):
         # self.register_buffer('sqrt_alphas_cumprod', to_torch(np.sqrt(alphas_cumprod)))
         # self.register_buffer('sqrt_one_minus_alphas_cumprod', to_torch(np.sqrt(1. - alphas_cumprod)))
-        return (extract_into_tensor(self.sqrt_alphas_cumprod, t, x_t.shape) * x_t -
-                extract_into_tensor(self.sqrt_one_minus_alphas_cumprod, t, x_t.shape) * v)
+        return (
+                extract_into_tensor(self.sqrt_alphas_cumprod, t, x_t.shape) * x_t -
+                extract_into_tensor(self.sqrt_one_minus_alphas_cumprod, t, x_t.shape) * v
+        )
 
     def predict_eps_from_z_and_v(self, x_t, t, v):
-        return (extract_into_tensor(self.sqrt_alphas_cumprod, t, x_t.shape) * v +
-                extract_into_tensor(self.sqrt_one_minus_alphas_cumprod, t, x_t.shape) * x_t)
+        return (
+                extract_into_tensor(self.sqrt_alphas_cumprod, t, x_t.shape) * v +
+                extract_into_tensor(self.sqrt_one_minus_alphas_cumprod, t, x_t.shape) * x_t
+        )
 
     def q_posterior(self, x_start, x_t, t):
-        posterior_mean = (extract_into_tensor(self.posterior_mean_coef1, t, x_t.shape) * x_start +
-                          extract_into_tensor(self.posterior_mean_coef2, t, x_t.shape) * x_t)
+        posterior_mean = (
+                extract_into_tensor(self.posterior_mean_coef1, t, x_t.shape) * x_start +
+                extract_into_tensor(self.posterior_mean_coef2, t, x_t.shape) * x_t
+        )
         posterior_variance = extract_into_tensor(self.posterior_variance, t, x_t.shape)
         posterior_log_variance_clipped = extract_into_tensor(self.posterior_log_variance_clipped, t, x_t.shape)
         return posterior_mean, posterior_variance, posterior_log_variance_clipped
@@ -368,8 +377,7 @@ class DDPM(pl.LightningModule):
         img = torch.randn(shape, device=device)
         intermediates = [img]
         for i in tqdm(reversed(range(0, self.num_timesteps)), desc='Sampling t', total=self.num_timesteps):
-            img = self.p_sample(img,
-                                torch.full((b,), i, device=device, dtype=torch.long),
+            img = self.p_sample(img, torch.full((b,), i, device=device, dtype=torch.long),
                                 clip_denoised=self.clip_denoised)
             if i % self.log_every_t == 0 or i == self.num_timesteps - 1:
                 intermediates.append(img)
@@ -390,8 +398,10 @@ class DDPM(pl.LightningModule):
                 extract_into_tensor(self.sqrt_one_minus_alphas_cumprod, t, x_start.shape) * noise)
 
     def get_v(self, x, noise, t):
-        return (extract_into_tensor(self.sqrt_alphas_cumprod, t, x.shape) * noise -
-                extract_into_tensor(self.sqrt_one_minus_alphas_cumprod, t, x.shape) * x)
+        return (
+                extract_into_tensor(self.sqrt_alphas_cumprod, t, x.shape) * noise -
+                extract_into_tensor(self.sqrt_one_minus_alphas_cumprod, t, x.shape) * x
+        )
 
     def get_loss(self, pred, target, mean=True):
         if self.loss_type == 'l1':
@@ -421,7 +431,7 @@ class DDPM(pl.LightningModule):
         elif self.parameterization == "v":
             target = self.get_v(x_start, noise, t)
         else:
-            raise NotImplementedError(f"Paramterization {self.parameterization} not yet supported")
+            raise NotImplementedError(f"Parameterization {self.parameterization} not yet supported")
 
         loss = self.get_loss(model_out, target, mean=False).mean(dim=[1, 2, 3])
 
