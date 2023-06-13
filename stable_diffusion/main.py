@@ -25,6 +25,7 @@ try:
     from lightning.pytorch import seed_everything
     from lightning.pytorch.callbacks import Callback, LearningRateMonitor, ModelCheckpoint
     from lightning.pytorch.trainer import Trainer
+    from lightning.pytorch.strategies.xla import XLAStrategy
     from lightning.pytorch.utilities import rank_zero_info, rank_zero_only
     LIGHTNING_PACK_NAME = "lightning.pytorch."
 except:
@@ -169,7 +170,7 @@ def nondefault_trainer_args(opt):
     # create an argument parsser
     parser = argparse.ArgumentParser()
     # add pytorch lightning trainer default arguments
-    parser = Trainer.add_argparse_args(parser)
+    # parser = Trainer.add_argparse_args(parser)
     # parse the empty arguments to obtain the default values
     args = parser.parse_args([])
     # return all non-default arguments
@@ -376,171 +377,171 @@ class SetupCallback(Callback):
 
 
 # PyTorch Lightning callback for ogging images during training and validation of a deep learning model
-class ImageLogger(Callback):
+# class ImageLogger(Callback):
 
-    def __init__(self,
-                 batch_frequency,           # Frequency of batches on which to log images
-                 max_images,                # Maximum number of images to log
-                 clamp=True,                # Whether to clamp pixel values to [-1,1]
-                 increase_log_steps=True,   # Whether to increase frequency of log steps exponentially
-                 rescale=True,              # Whetehr to rescale pixel values to [0,1]
-                 disabled=False,            # Whether to disable logging
-                 log_on_batch_idx=False,    # Whether to log on baych index instead of global step
-                 log_first_step=False,      # Whetehr to log on the first step
-                 log_images_kwargs=None):   # Additional keyword arguments to pass to log_images method
-        super().__init__()
-        self.rescale = rescale
-        self.batch_freq = batch_frequency
-        self.max_images = max_images
-        self.logger_log_images = {
-            # Dictionary of logger classes and their corresponding logging methods
-            pl.loggers.CSVLogger: self._testtube,
-        }
-        # Create a list of exponentially increasing log steps, starting from 1 and ending at batch_frequency
-        self.log_steps = [2**n for n in range(int(np.log2(self.batch_freq)) + 1)]
-        if not increase_log_steps:
-            self.log_steps = [self.batch_freq]
-        self.clamp = clamp
-        self.disabled = disabled
-        self.log_on_batch_idx = log_on_batch_idx
-        self.log_images_kwargs = log_images_kwargs if log_images_kwargs else {}
-        self.log_first_step = log_first_step
+#     def __init__(self,
+#                  batch_frequency,           # Frequency of batches on which to log images
+#                  max_images,                # Maximum number of images to log
+#                  clamp=True,                # Whether to clamp pixel values to [-1,1]
+#                  increase_log_steps=True,   # Whether to increase frequency of log steps exponentially
+#                  rescale=True,              # Whetehr to rescale pixel values to [0,1]
+#                  disabled=False,            # Whether to disable logging
+#                  log_on_batch_idx=False,    # Whether to log on baych index instead of global step
+#                  log_first_step=False,      # Whetehr to log on the first step
+#                  log_images_kwargs=None):   # Additional keyword arguments to pass to log_images method
+#         super().__init__()
+#         self.rescale = rescale
+#         self.batch_freq = batch_frequency
+#         self.max_images = max_images
+#         self.logger_log_images = {
+#             # Dictionary of logger classes and their corresponding logging methods
+#             pl.loggers.CSVLogger: self._testtube,
+#         }
+#         # Create a list of exponentially increasing log steps, starting from 1 and ending at batch_frequency
+#         self.log_steps = [2**n for n in range(int(np.log2(self.batch_freq)) + 1)]
+#         if not increase_log_steps:
+#             self.log_steps = [self.batch_freq]
+#         self.clamp = clamp
+#         self.disabled = disabled
+#         self.log_on_batch_idx = log_on_batch_idx
+#         self.log_images_kwargs = log_images_kwargs if log_images_kwargs else {}
+#         self.log_first_step = log_first_step
 
-    @rank_zero_only   # Ensure that only the first process in distributed training executes this method
-    def _testtube(self,         # The PyTorch Lightning module
-                  pl_module,    # A dictionary of images to log.
-                  images,       #
-                  batch_idx,    # The batch index.
-                  split         # The split (train/val) on which to log the images
-                  ):
-        # Method for logging images using test-tube logger
-        for k in images:
-            grid = torchvision.utils.make_grid(images[k])
-            grid = (grid + 1.0) / 2.0    # -1,1 -> 0,1; c,h,w
+#     @rank_zero_only   # Ensure that only the first process in distributed training executes this method
+#     def _testtube(self,         # The PyTorch Lightning module
+#                   pl_module,    # A dictionary of images to log.
+#                   images,       #
+#                   batch_idx,    # The batch index.
+#                   split         # The split (train/val) on which to log the images
+#                   ):
+#         # Method for logging images using test-tube logger
+#         for k in images:
+#             grid = torchvision.utils.make_grid(images[k])
+#             grid = (grid + 1.0) / 2.0    # -1,1 -> 0,1; c,h,w
 
-            tag = f"{split}/{k}"
-            # Add image grid to logger's experiment
-            pl_module.logger.experiment.add_image(tag, grid, global_step=pl_module.global_step)
+#             tag = f"{split}/{k}"
+#             # Add image grid to logger's experiment
+#             pl_module.logger.experiment.add_image(tag, grid, global_step=pl_module.global_step)
 
-    @rank_zero_only
-    def log_local(self,
-                  save_dir,
-                  split,         # The split (train/val) on which to log the images
-                  images,        # A dictionary of images to log
-                  global_step,   # The global step
-                  current_epoch, # The current epoch.
-                  batch_idx
-                  ):
-        # Method for saving image grids to local file system
-        root = os.path.join(save_dir, "images", split)
-        for k in images:
-            grid = torchvision.utils.make_grid(images[k], nrow=4)
-            if self.rescale:
-                grid = (grid + 1.0) / 2.0    # -1,1 -> 0,1; c,h,w
-            grid = grid.transpose(0, 1).transpose(1, 2).squeeze(-1)
-            grid = grid.numpy()
-            grid = (grid * 255).astype(np.uint8)
-            filename = "{}_gs-{:06}_e-{:06}_b-{:06}.png".format(k, global_step, current_epoch, batch_idx)
-            path = os.path.join(root, filename)
-            os.makedirs(os.path.split(path)[0], exist_ok=True)
-            # Save image grid as PNG file
-            Image.fromarray(grid).save(path)
+#     @rank_zero_only
+#     def log_local(self,
+#                   save_dir,
+#                   split,         # The split (train/val) on which to log the images
+#                   images,        # A dictionary of images to log
+#                   global_step,   # The global step
+#                   current_epoch, # The current epoch.
+#                   batch_idx
+#                   ):
+#         # Method for saving image grids to local file system
+#         root = os.path.join(save_dir, "images", split)
+#         for k in images:
+#             grid = torchvision.utils.make_grid(images[k], nrow=4)
+#             if self.rescale:
+#                 grid = (grid + 1.0) / 2.0    # -1,1 -> 0,1; c,h,w
+#             grid = grid.transpose(0, 1).transpose(1, 2).squeeze(-1)
+#             grid = grid.numpy()
+#             grid = (grid * 255).astype(np.uint8)
+#             filename = "{}_gs-{:06}_e-{:06}_b-{:06}.png".format(k, global_step, current_epoch, batch_idx)
+#             path = os.path.join(root, filename)
+#             os.makedirs(os.path.split(path)[0], exist_ok=True)
+#             # Save image grid as PNG file
+#             Image.fromarray(grid).save(path)
 
-    def log_img(self, pl_module, batch, batch_idx, split="train"):
-    # Function for logging images to both the logger and local file system.
-        check_idx = batch_idx if self.log_on_batch_idx else pl_module.global_step
-        # check if it's time to log an image batch
-        if (self.check_frequency(check_idx) and    # batch_idx % self.batch_freq == 0
-                hasattr(pl_module, "log_images") and callable(pl_module.log_images) and self.max_images > 0):
-            # Get logger type and check if training mode is on
-            logger = type(pl_module.logger)
+#     def log_img(self, pl_module, batch, batch_idx, split="train"):
+#     # Function for logging images to both the logger and local file system.
+#         check_idx = batch_idx if self.log_on_batch_idx else pl_module.global_step
+#         # check if it's time to log an image batch
+#         if (self.check_frequency(check_idx) and    # batch_idx % self.batch_freq == 0
+#                 hasattr(pl_module, "log_images") and callable(pl_module.log_images) and self.max_images > 0):
+#             # Get logger type and check if training mode is on
+#             logger = type(pl_module.logger)
 
-            is_train = pl_module.training
-            if is_train:
-                pl_module.eval()
+#             is_train = pl_module.training
+#             if is_train:
+#                 pl_module.eval()
 
-            with torch.no_grad():
-                # Get images from log_images method of the pl_module
-                images = pl_module.log_images(batch, split=split, **self.log_images_kwargs)
+#             with torch.no_grad():
+#                 # Get images from log_images method of the pl_module
+#                 images = pl_module.log_images(batch, split=split, **self.log_images_kwargs)
 
-            # Clip images if specified and convert to CPU tensor
-            for k in images:
-                N = min(images[k].shape[0], self.max_images)
-                images[k] = images[k][:N]
-                if isinstance(images[k], torch.Tensor):
-                    images[k] = images[k].detach().cpu()
-                    if self.clamp:
-                        images[k] = torch.clamp(images[k], -1., 1.)
+#             # Clip images if specified and convert to CPU tensor
+#             for k in images:
+#                 N = min(images[k].shape[0], self.max_images)
+#                 images[k] = images[k][:N]
+#                 if isinstance(images[k], torch.Tensor):
+#                     images[k] = images[k].detach().cpu()
+#                     if self.clamp:
+#                         images[k] = torch.clamp(images[k], -1., 1.)
 
-            # Log images locally to file system
-            self.log_local(pl_module.logger.save_dir, split, images, pl_module.global_step, pl_module.current_epoch,
-                           batch_idx)
+#             # Log images locally to file system
+#             self.log_local(pl_module.logger.save_dir, split, images, pl_module.global_step, pl_module.current_epoch,
+#                            batch_idx)
 
-            # log the images using the logger
-            logger_log_images = self.logger_log_images.get(logger, lambda *args, **kwargs: None)
-            logger_log_images(pl_module, images, pl_module.global_step, split)
+#             # log the images using the logger
+#             logger_log_images = self.logger_log_images.get(logger, lambda *args, **kwargs: None)
+#             logger_log_images(pl_module, images, pl_module.global_step, split)
 
-            # switch back to training mode if necessary
-            if is_train:
-                pl_module.train()
+#             # switch back to training mode if necessary
+#             if is_train:
+#                 pl_module.train()
 
-    # The function checks if it's time to log an image batch
-    def check_frequency(self, check_idx):
-        if ((check_idx % self.batch_freq) == 0 or
-            (check_idx in self.log_steps)) and (check_idx > 0 or self.log_first_step):
-            try:
-                self.log_steps.pop(0)
-            except IndexError as e:
-                print(e)
-                pass
-            return True
-        return False
+#     # The function checks if it's time to log an image batch
+#     def check_frequency(self, check_idx):
+#         if ((check_idx % self.batch_freq) == 0 or
+#             (check_idx in self.log_steps)) and (check_idx > 0 or self.log_first_step):
+#             try:
+#                 self.log_steps.pop(0)
+#             except IndexError as e:
+#                 print(e)
+#                 pass
+#             return True
+#         return False
 
-    # Log images on train batch end if logging is not disabled
-    def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
-        # if not self.disabled and (pl_module.global_step > 0 or self.log_first_step):
-        #     self.log_img(pl_module, batch, batch_idx, split="train")
-        pass
+#     # Log images on train batch end if logging is not disabled
+#     def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
+#         # if not self.disabled and (pl_module.global_step > 0 or self.log_first_step):
+#         #     self.log_img(pl_module, batch, batch_idx, split="train")
+#         pass
 
-    # Log images on validation batch end if logging is not disabled and in validation mode
-    def on_validation_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
-        if not self.disabled and pl_module.global_step > 0:
-            self.log_img(pl_module, batch, batch_idx, split="val")
-        # log gradients during calibration if necessary
-        if hasattr(pl_module, 'calibrate_grad_norm'):
-            if (pl_module.calibrate_grad_norm and batch_idx % 25 == 0) and batch_idx > 0:
-                self.log_gradients(trainer, pl_module, batch_idx=batch_idx)
+#     # Log images on validation batch end if logging is not disabled and in validation mode
+#     def on_validation_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
+#         if not self.disabled and pl_module.global_step > 0:
+#             self.log_img(pl_module, batch, batch_idx, split="val")
+#         # log gradients during calibration if necessary
+#         if hasattr(pl_module, 'calibrate_grad_norm'):
+#             if (pl_module.calibrate_grad_norm and batch_idx % 25 == 0) and batch_idx > 0:
+#                 self.log_gradients(trainer, pl_module, batch_idx=batch_idx)
 
 
-class CUDACallback(Callback):
-    # see https://github.com/SeanNaren/minGPT/blob/master/mingpt/callback.py
+# class CUDACallback(Callback):
+#     # see https://github.com/SeanNaren/minGPT/blob/master/mingpt/callback.py
 
-    def on_train_start(self, trainer, pl_module):
-        rank_zero_info("Training is starting")
+#     def on_train_start(self, trainer, pl_module):
+#         rank_zero_info("Training is starting")
 
-    # the method is called at the end of each training epoch
-    def on_train_end(self, trainer, pl_module):
-        rank_zero_info("Training is ending")
+#     # the method is called at the end of each training epoch
+#     def on_train_end(self, trainer, pl_module):
+#         rank_zero_info("Training is ending")
 
-    def on_train_epoch_start(self, trainer, pl_module):
-        # Reset the memory use counter
-        torch.cuda.reset_peak_memory_stats(trainer.strategy.root_device.index)
-        torch.cuda.synchronize(trainer.strategy.root_device.index)
-        self.start_time = time.time()
+#     def on_train_epoch_start(self, trainer, pl_module):
+#         # Reset the memory use counter
+#         torch.cuda.reset_peak_memory_stats(trainer.strategy.root_device.index)
+#         torch.cuda.synchronize(trainer.strategy.root_device.index)
+#         self.start_time = time.time()
 
-    def on_train_epoch_end(self, trainer, pl_module):
-        torch.cuda.synchronize(trainer.strategy.root_device.index)
-        max_memory = torch.cuda.max_memory_allocated(trainer.strategy.root_device.index) / 2**20
-        epoch_time = time.time() - self.start_time
+#     def on_train_epoch_end(self, trainer, pl_module):
+#         torch.cuda.synchronize(trainer.strategy.root_device.index)
+#         max_memory = torch.cuda.max_memory_allocated(trainer.strategy.root_device.index) / 2**20
+#         epoch_time = time.time() - self.start_time
 
-        try:
-            max_memory = trainer.strategy.reduce(max_memory)
-            epoch_time = trainer.strategy.reduce(epoch_time)
+#         try:
+#             max_memory = trainer.strategy.reduce(max_memory)
+#             epoch_time = trainer.strategy.reduce(epoch_time)
 
-            rank_zero_info(f"Average Epoch time: {epoch_time:.2f} seconds")
-            rank_zero_info(f"Average Peak memory {max_memory:.2f}MiB")
-        except AttributeError:
-            pass
+#             rank_zero_info(f"Average Epoch time: {epoch_time:.2f} seconds")
+#             rank_zero_info(f"Average Peak memory {max_memory:.2f}MiB")
+#         except AttributeError:
+#             pass
 
 
 if __name__ == "__main__":
@@ -594,7 +595,7 @@ if __name__ == "__main__":
     sys.path.append(os.getcwd())
 
     parser = get_parser()
-    parser = Trainer.add_argparse_args(parser)
+    # parser = Trainer.add_argparse_args(parser)
 
     opt, unknown = parser.parse_known_args()
     # Veirfy the arguments are both specified
@@ -659,22 +660,18 @@ if __name__ == "__main__":
         lightning_config = config.pop("lightning", OmegaConf.create())
         # merge trainer cli with config
         trainer_config = lightning_config.get("trainer", OmegaConf.create())
-
+        # merge strategy cli with config
+        strategy_config = lightning_config.get("strategy", OmegaConf.create())
         for k in nondefault_trainer_args(opt):
             trainer_config[k] = getattr(opt, k)
 
-        # Check whether the accelerator is gpu
-        if not trainer_config["accelerator"] == "gpu":
-            del trainer_config["accelerator"]
-            cpu = True
-        else:
-            cpu = False
+        cpu = False
         trainer_opt = argparse.Namespace(**trainer_config)
         lightning_config.trainer = trainer_config
 
         # model
-        precision = str(trainer_config.get("precision"))
-        config.model["params"].update({"precision": precision})
+        # precision = str(trainer_config.get("precision"))
+        # config.model["params"].update({"precision": precision})
 
 
         if ckpt is not None:
@@ -685,52 +682,43 @@ if __name__ == "__main__":
         model = instantiate_from_config(config.model)
         # trainer and callbacks
         trainer_kwargs = dict()
+        trainer_kwargs["logger"] = pl.loggers.TensorBoardLogger(logdir)
 
-        # config the logger
-        # Default logger configs to  log training metrics during the training process.
-        # These loggers are specified as targets in the dictionary, along with the configuration settings specific to each logger.
-        default_logger_cfgs = {
-            "wandb": {
-                "target": LIGHTNING_PACK_NAME + "loggers.WandbLogger",
-                "params": {
-                    "name": nowname,
-                    "save_dir": logdir,
-                    "offline": opt.debug,
-                    "id": nowname,
-                }
-            },
-            "tensorboard": {
-                "target": LIGHTNING_PACK_NAME + "loggers.TensorBoardLogger",
-                "params": {
-                    "save_dir": logdir,
-                    "name": "diff_tb",
-                    "log_graph": True
-                }
-            }
-        }
+        # # config the logger
+        # # Default logger configs to  log training metrics during the training process.
+        # # These loggers are specified as targets in the dictionary, along with the configuration settings specific to each logger.
+        # default_logger_cfgs = {
+        #     "tensorboard": {
+        #         "target": LIGHTNING_PACK_NAME + "loggers.TensorBoardLogger",
+        #         "params": {
+        #             "save_dir": logdir,
+        #             "name": "diff_tb",
+        #             # "log_graph": True
+        #         }
+        #     }
+        # }
 
-        # Set up the logger for TensorBoard
-        default_logger_cfg = default_logger_cfgs["tensorboard"]
-        if "logger" in lightning_config:
-            logger_cfg = lightning_config.logger
-        else:
-            logger_cfg = default_logger_cfg
-        logger_cfg = OmegaConf.merge(default_logger_cfg, logger_cfg)
-        trainer_kwargs["logger"] = instantiate_from_config(logger_cfg)
+        # # Set up the logger for TensorBoard
+        # default_logger_cfg = default_logger_cfgs["tensorboard"]
+        # if "logger" in lightning_config:
+        #     logger_cfg = lightning_config.logger
+        # else:
+        #     logger_cfg = default_logger_cfg
+        # logger_cfg = OmegaConf.merge(default_logger_cfg, logger_cfg)
+        # trainer_kwargs["logger"] = instantiate_from_config(logger_cfg)
 
-        # config the strategy, defualt is ddp
-        if "strategy" in trainer_config:
-            strategy_cfg = trainer_config["strategy"]
-            strategy_cfg["target"] = LIGHTNING_PACK_NAME + strategy_cfg["target"]
-        else:
-            strategy_cfg = {
-                "target": LIGHTNING_PACK_NAME + "strategies.DDPStrategy",
-                "params": {
-                    "find_unused_parameters": False
-                }
-            }
-
-        trainer_kwargs["strategy"] = instantiate_from_config(strategy_cfg)
+        # # config the strategy, defualt is ddp
+        # if "strategy" in trainer_config:
+        #     strategy_cfg = trainer_config["strategy"]
+        #     strategy_cfg["target"] = LIGHTNING_PACK_NAME + strategy_cfg["target"]
+        # else:
+        #     strategy_cfg = {
+        #         "target": LIGHTNING_PACK_NAME + "strategies.DDPStrategy",
+        #         "params": {
+        #             "find_unused_parameters": False
+        #         }
+        #     }
+        # trainer_kwargs["strategy"] = instantiate_from_config(strategy_cfg)
 
         # Set up various callbacks, including logging, learning rate monitoring, and CUDA management
         # add callback which sets up log directory
@@ -746,24 +734,6 @@ if __name__ == "__main__":
                     "config": config,                     # configuration dictionary
                     "lightning_config": lightning_config, # LightningModule configuration
                 }
-            },
-            "image_logger": {                             # callback to log image data
-                "target": "main.ImageLogger",
-                "params": {
-                    "batch_frequency": 750,               # how frequently to log images
-                    "max_images": 4,                      # maximum number of images to log
-                    "clamp": True                         # whether to clamp pixel values to [0,1]
-                }
-            },
-            "learning_rate_logger": {                     # callback to log learning rate
-                "target": "main.LearningRateMonitor",
-                "params": {
-                    "logging_interval": "step",           # logging frequency (either 'step' or 'epoch')
-                  # "log_momentum": True                  # whether to log momentum (currently commented out)
-                }
-            },
-            "cuda_callback": {                            # callback to handle CUDA-related operations
-                "target": "main.CUDACallback"
             },
         }
 
@@ -802,28 +772,37 @@ if __name__ == "__main__":
         # Set up ModelCheckpoint callback to save best models
         # modelcheckpoint - use TrainResult/EvalResult(checkpoint_on=metric) to
         # specify which metric is used to determine best models
-        default_modelckpt_cfg = {
-            "target": LIGHTNING_PACK_NAME + "callbacks.ModelCheckpoint",
-            "params": {
-                "dirpath": ckptdir,
-                "filename": "{epoch:06}-{step:09}",
-                "verbose": True,
-                "save_last": True,
-            }
-        }
+        # default_modelckpt_cfg = {
+        #     "target": LIGHTNING_PACK_NAME + "callbacks.ModelCheckpoint",
+        #     "params": {
+        #         "dirpath": ckptdir,
+        #         "filename": "{epoch:06}-{step:09}",
+        #         "verbose": True,
+        #         "save_last": False,
+        #         "every_n_epochs": 1500
+        #     }
+        # }
         # if hasattr(model, "monitor"):
         #     default_modelckpt_cfg["params"]["monitor"] = model.monitor
         #     default_modelckpt_cfg["params"]["save_top_k"] = 3
 
-        if "modelcheckpoint" in lightning_config:
-            modelckpt_cfg = lightning_config.modelcheckpoint
-        else:
-            modelckpt_cfg = OmegaConf.create()
-        modelckpt_cfg = OmegaConf.merge(default_modelckpt_cfg, modelckpt_cfg)
-        trainer_kwargs["callbacks"].append(instantiate_from_config(modelckpt_cfg))
+        # if "modelcheckpoint" in lightning_config:
+        #     modelckpt_cfg = lightning_config.modelcheckpoint
+        # else:
+        #     modelckpt_cfg = OmegaConf.create()
+        # modelckpt_cfg = OmegaConf.merge(default_modelckpt_cfg, modelckpt_cfg)
+        # modelckpt_cfg = OmegaConf.create()
+        # trainer_kwargs["callbacks"].append(instantiate_from_config(modelckpt_cfg))
 
         # Create a Trainer object with the specified command-line arguments and keyword arguments, and set the log directory
-        trainer = Trainer.from_argparse_args(trainer_opt, **trainer_kwargs)
+        # trainer = Trainer.from_argparse_args(trainer_opt, **trainer_kwargs)
+        strategy = 'auto'
+        if hasattr(strategy_config, 'name'):
+            if strategy_config.name == 'xla':
+                strategy = XLAStrategy(**strategy_config)
+            else:
+                strategy = strategy_config.name
+        trainer = Trainer(strategy=strategy, **vars(trainer_opt), **trainer_kwargs)
         trainer.logdir = logdir
 
         # Create a data module based on the configuration file
@@ -844,7 +823,8 @@ if __name__ == "__main__":
             bs = config.data.params.train.params.batch_size
 
         if not cpu:
-            ngpu = trainer_config["devices"]
+            # ngpu = trainer_config["devices"]
+            ngpu = lightning_config.trainer.devices
         else:
             ngpu = 1
         if 'accumulate_grad_batches' in lightning_config.trainer:
@@ -869,7 +849,7 @@ if __name__ == "__main__":
             if trainer.global_rank == 0:
                 print("Summoning checkpoint.")
                 ckpt_path = os.path.join(ckptdir, "last.ckpt")
-                trainer.save_checkpoint(ckpt_path)
+                # trainer.save_checkpoint(ckpt_path)
 
         def divein(*args, **kwargs):
             if trainer.global_rank == 0:
@@ -884,7 +864,11 @@ if __name__ == "__main__":
         # Run the training and validation
         if opt.train:
             try:
+                start = time.time()
                 trainer.fit(model, data)
+                stop = time.time()
+                print('***** Training is over *****')
+                print(f"Training time: {stop - start}s")
             except Exception:
                 melk()
                 raise

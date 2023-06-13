@@ -2,3 +2,10 @@
 __pycache__/
 *.py[cod]
 *$py.class
+stable_diffusion/logs*
+stable_diffusion/main_backup.py
+stable_diffusion/main_tpu.py
+stable_diffusion/models/
+stable_diffusion/output_*
+stable_diffusion/src/
+stable_diffusion/ldm/modules/image_degradation/
