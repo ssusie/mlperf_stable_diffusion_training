@@ -670,8 +670,8 @@ if __name__ == "__main__":
         lightning_config.trainer = trainer_config
 
         # model
-        # precision = str(trainer_config.get("precision"))
-        # config.model["params"].update({"precision": precision})
+        precision = str(trainer_config.get("precision"))
+        config.model["params"].update({"precision": precision})
 
 
         if ckpt is not None:
@@ -722,20 +722,20 @@ if __name__ == "__main__":
 
         # Set up various callbacks, including logging, learning rate monitoring, and CUDA management
         # add callback which sets up log directory
-        default_callbacks_cfg = {
-            "setup_callback": {                           # callback to set up the training
-                "target": "main.SetupCallback",
-                "params": {
-                    "resume": opt.resume,                 # resume training if applicable
-                    "now": now,
-                    "logdir": logdir,                     # directory to save the log file
-                    "ckptdir": ckptdir,                   # directory to save the checkpoint file
-                    "cfgdir": cfgdir,                     # directory to save the configuration file
-                    "config": config,                     # configuration dictionary
-                    "lightning_config": lightning_config, # LightningModule configuration
-                }
-            },
-        }
+        # default_callbacks_cfg = {
+        #     "setup_callback": {                           # callback to set up the training
+        #         "target": "main.SetupCallback",
+        #         "params": {
+        #             "resume": opt.resume,                 # resume training if applicable
+        #             "now": now,
+        #             "logdir": logdir,                     # directory to save the log file
+        #             "ckptdir": ckptdir,                   # directory to save the checkpoint file
+        #             "cfgdir": cfgdir,                     # directory to save the configuration file
+        #             "config": config,                     # configuration dictionary
+        #             "lightning_config": lightning_config, # LightningModule configuration
+        #         }
+        #     },
+        # }
 
         # If the LightningModule configuration has specified callbacks, use those
         # Otherwise, create an empty OmegaConf configuration object
@@ -746,26 +746,26 @@ if __name__ == "__main__":
 
         # If the 'metrics_over_trainsteps_checkpoint' callback is specified in the
         # LightningModule configuration, update the default callbacks configuration
-        if 'metrics_over_trainsteps_checkpoint' in callbacks_cfg:
-            print(
-                'Caution: Saving checkpoints every n train steps without deleting. This might require some free space.')
-            default_metrics_over_trainsteps_ckpt_dict = {
-                'metrics_over_trainsteps_checkpoint': {
-                    "target": LIGHTNING_PACK_NAME + 'callbacks.ModelCheckpoint',
-                    'params': {
-                        "dirpath": os.path.join(ckptdir, 'trainstep_checkpoints'),
-                        "filename": "{epoch:06}-{step:09}",
-                        "verbose": True,
-                        'save_top_k': -1,
-                        'every_n_train_steps': 10000,
-                        'save_weights_only': True
-                    }
-                }
-            }
-            default_callbacks_cfg.update(default_metrics_over_trainsteps_ckpt_dict)
+        # if 'metrics_over_trainsteps_checkpoint' in callbacks_cfg:
+        #     print(
+        #         'Caution: Saving checkpoints every n train steps without deleting. This might require some free space.')
+        #     default_metrics_over_trainsteps_ckpt_dict = {
+        #         'metrics_over_trainsteps_checkpoint': {
+        #             "target": LIGHTNING_PACK_NAME + 'callbacks.ModelCheckpoint',
+        #             'params': {
+        #                 "dirpath": os.path.join(ckptdir, 'trainstep_checkpoints'),
+        #                 "filename": "{epoch:06}-{step:09}",
+        #                 "verbose": True,
+        #                 'save_top_k': -1,
+        #                 'every_n_train_steps': 10000,
+        #                 'save_weights_only': True
+        #             }
+        #         }
+        #     }
+        #     default_callbacks_cfg.update(default_metrics_over_trainsteps_ckpt_dict)
 
         # Merge the default callbacks configuration with the specified callbacks configuration, and instantiate the callbacks
-        callbacks_cfg = OmegaConf.merge(default_callbacks_cfg, callbacks_cfg)
+        # callbacks_cfg = OmegaConf.merge(default_callbacks_cfg, callbacks_cfg)
 
         trainer_kwargs["callbacks"] = [instantiate_from_config(callbacks_cfg[k]) for k in callbacks_cfg]
 
@@ -802,7 +802,7 @@ if __name__ == "__main__":
                 strategy = XLAStrategy(**strategy_config)
             else:
                 strategy = strategy_config.name
-        trainer = Trainer(strategy=strategy, **vars(trainer_opt), **trainer_kwargs)
+        trainer = Trainer(strategy=strategy, enable_checkpointing=False, **vars(trainer_opt), **trainer_kwargs)
         trainer.logdir = logdir
 
         # Create a data module based on the configuration file
@@ -864,6 +864,7 @@ if __name__ == "__main__":
         # Run the training and validation
         if opt.train:
             try:
+                print('SS: start training at ', datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S"))
                 start = time.time()
                 trainer.fit(model, data)
                 stop = time.time()

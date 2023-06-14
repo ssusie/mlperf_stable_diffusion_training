@@ -524,7 +524,7 @@ class UNetModel(nn.Module):
         self.num_head_channels = num_head_channels
         self.num_heads_upsample = num_heads_upsample
         self.predict_codebook_ids = n_embed is not None
-        
+
         self.dtype = th.float32
         if precision == '16':
             self.dtype = th.float16

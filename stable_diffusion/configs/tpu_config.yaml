@@ -21,7 +21,6 @@ model:
         image_size: 32
         in_channels: 4
         out_channels: 4
-        precision: '32'
         model_channels: 256
         attention_resolutions:
         #note: this isn\t actually the resolution but
@@ -72,7 +71,7 @@ model:
 data:
   target: main_tpu.DataModuleFromConfig
   params:
-    batch_size: 64
+    batch_size: 32
     num_workers: 8
     wrap: false
     train:
@@ -91,9 +90,10 @@ lightning:
   trainer:
     benchmark: false
     devices: 4
-    max_epochs: 3
+    max_epochs: 2
     log_every_n_steps: 200
-    enable_progress_bar: False
+    enable_progress_bar: false
+    precision: 32
   strategy:
     name: xla
     sync_module_states: False
