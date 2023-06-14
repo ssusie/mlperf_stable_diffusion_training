@@ -10,6 +10,7 @@ model:
     first_stage_key: image
     cond_stage_key: class_label
     image_size: 32
+    precision: 32
     channels: 4
     cond_stage_trainable: true
     conditioning_key: crossattn
@@ -22,6 +23,7 @@ model:
         in_channels: 4
         out_channels: 4
         model_channels: 256
+        precision: 32
         attention_resolutions:
         #note: this isn\t actually the resolution but
         # the downsampling factor, i.e. this corresnponds to
@@ -71,7 +73,7 @@ model:
 data:
   target: main_tpu.DataModuleFromConfig
   params:
-    batch_size: 32
+    batch_size: 64
     num_workers: 8
     wrap: false
     train:
